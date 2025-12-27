@@ -30,6 +30,22 @@ imageStore.configure({ baseUrl: config.publicBaseUrl });
 roonService.start();
 chromecastService.start();
 
+// Restore saved selections after discovery
+setTimeout(() => {
+  const roonConfig = roonService.config;
+  const castConfig = chromecastService.config;
+  
+  if (roonConfig.selectedZoneId && roonService.zones.has(roonConfig.selectedZoneId)) {
+    console.log('[Init] Restoring saved zone:', roonConfig.selectedZoneId);
+    roonService.setSelectedZone(roonConfig.selectedZoneId);
+  }
+  
+  if (castConfig.selectedChromecastId && chromecastService.devices.has(castConfig.selectedChromecastId)) {
+    console.log('[Init] Restoring saved Chromecast:', castConfig.selectedChromecastId);
+    chromecastService.selectDevice(castConfig.selectedChromecastId);
+  }
+}, 3000);
+
 app.use(cors());
 app.use(express.json());
 app.get('/images/:id', (req, res) => {

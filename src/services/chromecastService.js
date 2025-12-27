@@ -1,6 +1,7 @@
 const EventEmitter = require('events');
 const mdns = require('mdns-js');
 const { Client } = require('castv2');
+const { loadConfig, saveConfig } = require('../utils/config');
 
 const DISCOVERY_SERVICE = mdns.tcp('googlecast');
 const DEVICE_TTL_MS = 24 * 60 * 60 * 1000; // keep entries for 24h unless rediscovered
@@ -34,6 +35,7 @@ class ChromecastService extends EventEmitter {
     this.requestId = 1;
     this.lastMessage = null;
     this.stopCastTimer = null;
+    this.config = loadConfig();
   }
 
   resetApplicationState() {
@@ -132,6 +134,8 @@ class ChromecastService extends EventEmitter {
   selectDevice(deviceId) {
     if (!this.devices.has(deviceId)) return false;
     this.selectedDeviceId = deviceId;
+    this.config.selectedChromecastId = deviceId;
+    saveConfig(this.config);
     this.emit('devices', this.getDevices());
     this.connect().catch(() => {
       /* handled via event emitter */

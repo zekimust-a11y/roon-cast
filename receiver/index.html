@@ -133,52 +133,23 @@
         text-align: right;
       }
 
-      .waveform-container {
+      .progress-container {
         flex: 1;
-        height: 16px;
+        height: 6px;
         display: flex;
         align-items: center;
+        position: relative;
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 3px;
+        overflow: hidden;
       }
 
-      .waveform-stack {
-        width: 100%;
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-      }
-
-      .waveform {
-        width: 100%;
-        height: 16px;
-        display: flex;
-        gap: 2px;
-      }
-
-      .waveform-reflection {
-        transform: scaleY(-1);
-        opacity: 0.28;
-        filter: blur(2px);
-        -webkit-mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.4), transparent);
-        mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.4), transparent);
-      }
-
-      .waveform-reflection-top {
-        transform: scaleY(-1);
-        opacity: 0.2;
-        filter: blur(1px);
-        -webkit-mask-image: linear-gradient(0deg, rgba(0, 0, 0, 0.4), transparent);
-        mask-image: linear-gradient(0deg, rgba(0, 0, 0, 0.4), transparent);
-      }
-
-      .waveform-bar {
-        flex: 1;
-        background: rgba(255, 255, 255, 0.2);
-        border-radius: 2px;
-        transition: background 0.3s ease;
-      }
-
-      .waveform-bar.played {
-        background: #fff;
+      .progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #ffffff, rgba(255, 255, 255, 0.9));
+        border-radius: 3px;
+        transition: width 0.3s ease-out;
+        width: 0%;
       }
 
       #volume-overlay {
@@ -247,7 +218,7 @@
           gap: 10px;
         }
 
-        .waveform-container {
+        .progress-container {
           width: 100%;
         }
 
@@ -271,12 +242,8 @@
         <p class="artist-text"></p>
         <div class="progress-row">
           <span class="time current">0:00</span>
-          <div class="waveform-container">
-            <div class="waveform-stack">
-                <div class="waveform waveform-reflection waveform-reflection-top" id="waveform-reflection-top"></div>
-              <div class="waveform waveform-main" id="waveform"></div>
-              <div class="waveform waveform-reflection" id="waveform-reflection"></div>
-            </div>
+          <div class="progress-container">
+            <div class="progress-bar" id="progress-bar"></div>
           </div>
           <span class="time duration">0:00</span>
         </div>
@@ -312,9 +279,7 @@
       const artistEl = document.querySelector('.artist-text');
       const currentTimeEl = document.querySelector('.time.current');
       const durationEl = document.querySelector('.time.duration');
-      const waveformMain = document.getElementById('waveform');
-      const waveformReflection = document.getElementById('waveform-reflection');
-      const waveformReflectionTop = document.getElementById('waveform-reflection-top');
+      const progressBar = document.getElementById('progress-bar');
       const albumArt = document.getElementById('album-art');
       const volumeOverlay = document.getElementById('volume-overlay');
       const volumeIcon = document.getElementById('volume-icon');
@@ -329,7 +294,6 @@
       let volumeTimer = null;
       let artistImages = [];
       let rotationTimer = null;
-      let waveformPairs = [];
       const BACKGROUND_ROTATION_MS = 20000;
 
       function handleMessage(data) {
@@ -368,7 +332,7 @@
           artistEl.textContent = artistName;
           currentTimeEl.textContent = formatTime(seek);
           durationEl.textContent = formatTime(duration);
-          updateWaveform(progress);
+          updateProgress(progress);
 
           if (trackId !== lastTrackId) {
             lastTrackId = trackId;
@@ -401,7 +365,7 @@
         const total = lastPayload.now_playing.length || 0;
         const seek = lastPayload.seek_position;
         currentTimeEl.textContent = formatTime(seek);
-        updateWaveform(total > 0 ? (seek / total) * 100 : 0);
+        updateProgress(total > 0 ? (seek / total) * 100 : 0);
       }
 
       function handleVolumeOverlay(volumeObj) {
@@ -409,9 +373,22 @@
         const db = typeof volumeObj.value === 'number' ? volumeObj.value : -80;
         const percentage = Math.max(0, Math.min(100, Math.round(((db + 80) / 80) * 100)));
         const isMuted = !!volumeObj.is_muted;
-        if (lastVolume === percentage && lastMute === isMuted) return;
+        
+        // Only show overlay if volume actually changed (not on initial load)
+        const volumeChanged = lastVolume !== null && (lastVolume !== percentage || lastMute !== isMuted);
+        
+        if (!volumeChanged && lastVolume === null) {
+          // First load - just save the values without showing overlay
+          lastVolume = percentage;
+          lastMute = isMuted;
+          return;
+        }
+        
+        if (!volumeChanged) return;
+        
         lastVolume = percentage;
         lastMute = isMuted;
+        
         if (isMuted) {
           volumeIcon.textContent = '🔇';
           volumeValue.innerHTML = '<span class="mute-text">MUTED</span>';
@@ -487,15 +464,8 @@
         });
       }
 
-      function updateWaveform(progress) {
-        if (!waveformPairs.length) return;
-        const count = Math.floor((progress / 100) * waveformPairs.length);
-        waveformPairs.forEach(([bar, mirrorBottom, mirrorTop], index) => {
-          const played = index < count;
-          bar.classList.toggle('played', played);
-          mirrorBottom.classList.toggle('played', played);
-          mirrorTop.classList.toggle('played', played);
-        });
+      function updateProgress(progress) {
+        progressBar.style.width = `${Math.min(100, Math.max(0, progress))}%`;
       }
 
       function formatTime(seconds) {
@@ -517,7 +487,7 @@
         albumArt.classList.remove('loaded');
         albumArt.removeAttribute('src');
         updateBackgroundSources([], null);
-        updateWaveform(0);
+        updateProgress(0);
         stopPlayback();
       }
 
@@ -533,30 +503,7 @@
         lastPayload = null;
       }
 
-      function buildWaveform() {
-        waveformPairs = [];
-        waveformMain.innerHTML = '';
-        waveformReflection.innerHTML = '';
-        waveformReflectionTop.innerHTML = '';
-        for (let i = 0; i < 120; i += 1) {
-          const height = `${20 + Math.random() * 70}%`;
-          const bar = document.createElement('div');
-          bar.className = 'waveform-bar';
-          bar.style.height = height;
-          const mirrorBottom = document.createElement('div');
-          mirrorBottom.className = 'waveform-bar';
-          mirrorBottom.style.height = height;
-          const mirrorTop = document.createElement('div');
-          mirrorTop.className = 'waveform-bar';
-          mirrorTop.style.height = height;
-          waveformMain.appendChild(bar);
-          waveformReflection.appendChild(mirrorBottom);
-          waveformReflectionTop.appendChild(mirrorTop);
-          waveformPairs.push([bar, mirrorBottom, mirrorTop]);
-        }
-      }
-
-      buildWaveform();
+      context.start(options);
     </script>
   </body>
 </html>

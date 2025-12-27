@@ -2,11 +2,11 @@ const EventEmitter = require('events');
 const RoonApi = require('node-roon-api');
 const RoonApiStatus = require('node-roon-api-status');
 const RoonApiTransport = require('node-roon-api-transport');
-const RoonApiSettings = require('node-roon-api-settings');
 const RoonApiBrowse = require('node-roon-api-browse');
 const RoonApiImage = require('node-roon-api-image');
 const imageStore = require('./imageStore');
 const externalArtService = require('./externalArtService');
+const { loadConfig, saveConfig } = require('../utils/config');
 
 const ROON_EXTENSION_ID = 'com.zeki.rooncast';
 const ROON_DISPLAY_NAME = 'Roon Chromecast Bridge';
@@ -18,7 +18,6 @@ class RoonService extends EventEmitter {
     this.roon = null;
     this.transport = null;
     this.statusSvc = null;
-    this.settingsSvc = null;
     this.browseSvc = null;
     this.imageSvc = null;
 
@@ -32,6 +31,7 @@ class RoonService extends EventEmitter {
     this.coreReconnectTimer = null;
     this.isCoreReconnectPending = false;
     this.lastTransportState = 'idle';
+    this.config = loadConfig();
   }
 
   start() {
@@ -48,55 +48,17 @@ class RoonService extends EventEmitter {
     });
 
     this.statusSvc = new RoonApiStatus(this.roon);
-    this.settingsSvc = new RoonApiSettings(this.roon, {
-      get_settings: (cb) => {
-        cb(this.buildSettings());
-      },
-      save_settings: (req, isDryRun, settings) => {
-        if (!isDryRun) {
-          this.applySettings(settings.values);
-          this.emitState();
-        }
-        req.sendComplete('Success', { settings: this.buildSettings() });
-      },
-    });
 
     this.browseSvc = new RoonApiBrowse(this.roon);
 
     this.roon.init_services({
       required_services: [RoonApiTransport, RoonApiImage],
       optional_services: [RoonApiBrowse],
-      provided_services: [this.statusSvc, this.settingsSvc],
+      provided_services: [this.statusSvc],
     });
 
     this.statusSvc.set_status('Waiting for Roon Core authorization', false);
     this.roon.start_discovery();
-  }
-
-  buildSettings() {
-    const zoneOptions = Array.from(this.zones.values()).map((zone) => ({
-      title: zone.display_name,
-      value: zone.zone_id,
-    }));
-
-    return {
-      values: [
-        {
-          type: 'string',
-          title: 'Selected Zone',
-          name: 'selected_zone',
-          value: this.selectedZoneId || '',
-          options: zoneOptions,
-        },
-      ],
-    };
-  }
-
-  applySettings(values) {
-    const zoneSetting = values.find((item) => item.name === 'selected_zone');
-    if (zoneSetting && zoneSetting.value) {
-      this.setSelectedZone(zoneSetting.value);
-    }
   }
 
   handleCorePaired(core) {
@@ -225,6 +187,8 @@ class RoonService extends EventEmitter {
     const zone = this.zones.get(zoneId);
     if (!zone) return;
     this.selectedZoneId = zoneId;
+    this.config.selectedZoneId = zoneId;
+    saveConfig(this.config);
     this.emitState();
     this.evaluatePlaybackState();
   }
@@ -422,25 +386,45 @@ class RoonService extends EventEmitter {
     const MAX_ARTIST_IMAGES = 4;
     const finalImages = Array.isArray(existingImages) ? [...existingImages] : [];
     const trimmed = finalImages.filter(Boolean).slice(0, MAX_ARTIST_IMAGES);
-    if (trimmed.length >= 2 || trimmed.length >= MAX_ARTIST_IMAGES) {
+    
+    console.log('[RoonService] enrichArtistImages: Roon provided', trimmed.length, 'artist images');
+    
+    if (trimmed.length >= MAX_ARTIST_IMAGES) {
+      console.log('[RoonService] enrichArtistImages: Already have', MAX_ARTIST_IMAGES, 'images, no external fetch needed');
       return trimmed;
     }
+    
     const artistName = this.extractArtistName(nowPlaying);
     if (!artistName) {
+      console.log('[RoonService] enrichArtistImages: No artist name found');
       return trimmed;
     }
+    
+    console.log('[RoonService] enrichArtistImages: Fetching external images for artist:', artistName);
+    
     const needed = Math.max(0, MAX_ARTIST_IMAGES - trimmed.length);
     if (needed === 0) {
       return trimmed;
     }
-    const supplemental = await externalArtService.fetchAdditionalArtistImages(artistName, Math.max(2, needed));
-    const merged = [...trimmed];
-    supplemental.forEach((url) => {
-      if (!url) return;
-      if (merged.includes(url)) return;
-      merged.push(url);
-    });
-    return merged.slice(0, MAX_ARTIST_IMAGES);
+    
+    try {
+      const supplemental = await externalArtService.fetchAdditionalArtistImages(artistName, Math.max(2, needed));
+      console.log('[RoonService] enrichArtistImages: External services provided', supplemental.length, 'images');
+      
+      const merged = [...trimmed];
+      supplemental.forEach((url) => {
+        if (!url) return;
+        if (merged.includes(url)) return;
+        merged.push(url);
+      });
+      
+      const result = merged.slice(0, MAX_ARTIST_IMAGES);
+      console.log('[RoonService] enrichArtistImages: Final count:', result.length, 'images');
+      return result;
+    } catch (err) {
+      console.error('[RoonService] enrichArtistImages: External fetch failed:', err.message);
+      return trimmed;
+    }
   }
 
   extractArtistName(nowPlaying) {
