@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Roon → Chromecast Bridge</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>Roon → Chromecast Bridge</h1>
+        <p class="subtitle">Select your Roon Core, zone, and Chromecast device.</p>
+      </div>
+      <div class="status-pill" id="cast-status">Idle</div>
+    </header>
+
+    <main>
+      <section>
+        <h2>1. Roon Core</h2>
+        <p class="help">Authorize the extension inside Roon, then select the core.</p>
+        <select id="core-select">
+          <option value="">Discovering cores…</option>
+        </select>
+        <button id="refresh-status" class="ghost">Refresh</button>
+      </section>
+
+      <section>
+        <h2>2. Zone</h2>
+        <p class="help">Pick the zone that should trigger casting.</p>
+        <select id="zone-select" disabled>
+          <option value="">Select a core first</option>
+        </select>
+        <button id="reselect-zone" class="ghost">Reselect</button>
+      </section>
+
+      <section>
+        <h2>3. Chromecast Device</h2>
+        <p class="help">Devices on the local network are discovered automatically.</p>
+        <select id="cast-select">
+          <option value="">Scanning for devices…</option>
+        </select>
+        <button id="refresh-cast" class="ghost">Rescan</button>
+      </section>
+
+      <section class="now-playing">
+        <div>
+          <p class="label">Now Playing</p>
+          <h3 id="track-title">Waiting for playback…</h3>
+          <p id="track-artist"></p>
+          <p id="track-album"></p>
+          <div class="meta">
+            <span id="zone-name"></span>
+            <span id="core-name"></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="debug">
+        <h3>Debug feed</h3>
+        <pre id="debug-log"></pre>
+      </section>
+    </main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>
+
+
