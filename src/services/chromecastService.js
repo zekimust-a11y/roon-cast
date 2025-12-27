@@ -321,20 +321,7 @@ class ChromecastService extends EventEmitter {
     
     console.log('[Chromecast] Payload too large:', size, 'bytes, trimming...');
 
-    // Step 1: Trim artist images to 2 (keep some for cycling)
-    if (Array.isArray(clone.artist_images) && clone.artist_images.length > 2) {
-      clone.artist_images = clone.artist_images.slice(0, 2);
-      trimmed = true;
-    }
-    
-    sanitized = { type, payload: clone };
-    size = Buffer.byteLength(JSON.stringify(sanitized));
-    if (size <= MAX_MESSAGE_BYTES) {
-      console.log('[Chromecast] trimmed artist_images, payload now', size, 'bytes');
-      return sanitized;
-    }
-    
-    // Step 2: Collapse three_line to just line1
+    // Step 1: Collapse three_line to just line1
     if (clone.now_playing) {
       clone.now_playing = { ...clone.now_playing };
       if (clone.now_playing.three_line) {
@@ -357,20 +344,7 @@ class ChromecastService extends EventEmitter {
       return sanitized;
     }
 
-    // Step 3: Remove all artist images if still too large
-    if (clone.artist_images && clone.artist_images.length) {
-      clone.artist_images = [];
-      trimmed = true;
-    }
-
-    sanitized = { type, payload: clone };
-    size = Buffer.byteLength(JSON.stringify(sanitized));
-    if (size <= MAX_MESSAGE_BYTES) {
-      console.log('[Chromecast] removed artist_images, payload now', size, 'bytes');
-      return sanitized;
-    }
-
-    // Step 4: Remove text metadata
+    // Step 3: Remove text metadata
     if (clone.now_playing) {
       delete clone.now_playing.two_line;
       delete clone.now_playing.three_line;
@@ -382,7 +356,35 @@ class ChromecastService extends EventEmitter {
       }
     }
     
-    // Step 5: Last resort - remove inline album art
+    // Step 4: Trim artist images to 2 (only if we still need to)
+    if (Array.isArray(clone.artist_images) && clone.artist_images.length > 2) {
+      console.log('[Chromecast] Trimming artist_images from', clone.artist_images.length, 'to 2');
+      clone.artist_images = clone.artist_images.slice(0, 2);
+      trimmed = true;
+    }
+    
+    sanitized = { type, payload: clone };
+    size = Buffer.byteLength(JSON.stringify(sanitized));
+    if (size <= MAX_MESSAGE_BYTES) {
+      console.log('[Chromecast] trimmed artist_images, payload now', size, 'bytes');
+      return sanitized;
+    }
+
+    // Step 5: Remove all artist images if still too large
+    if (clone.artist_images && clone.artist_images.length) {
+      console.log('[Chromecast] Removing all artist_images');
+      clone.artist_images = [];
+      trimmed = true;
+    }
+
+    sanitized = { type, payload: clone };
+    size = Buffer.byteLength(JSON.stringify(sanitized));
+    if (size <= MAX_MESSAGE_BYTES) {
+      console.log('[Chromecast] removed all artist_images, payload now', size, 'bytes');
+      return sanitized;
+    }
+    
+    // Step 6: Last resort - remove inline album art
     if (clone.image_data) {
       delete clone.image_data;
       sanitized = { type, payload: clone };

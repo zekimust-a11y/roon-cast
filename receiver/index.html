@@ -4,7 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Roon Cast Receiver</title>
-    <!-- v1.2.2 -->
     <style>
       * {
         margin: 0;
@@ -340,15 +339,11 @@
           bottomBar.classList.remove('hidden');
           
           const trackId = `${nowPlaying.one_line?.line1 || ''}-${nowPlaying.two_line?.line1 || ''}`;
-          // Use the 'artist' field which contains only artists, not composers
-          // If artist is not available, fall back to line2 and show all artists
-          let artistName = nowPlaying.artist || nowPlaying.two_line?.line2 || '';
-          
-          // Clean up artist display: if 'N/A' or empty, try to extract from line2
-          if (!artistName || artistName === 'N/A') {
-            artistName = nowPlaying.two_line?.line2 || '';
+          let artistName = nowPlaying.two_line?.line2 || '';
+          // If multiple artists separated by slashes, show only the primary artist
+          if (artistName.includes(' / ')) {
+            artistName = artistName.split(' / ')[0].trim();
           }
-          
           const trackTitle = nowPlaying.two_line?.line1 || nowPlaying.one_line?.line1 || 'Unknown track';
           const duration = nowPlaying.length || 0;
           const seek = payload.seek_position || 0;

@@ -20,9 +20,21 @@ async function fetchJSON(url) {
 
 // Known placeholder image patterns to filter out
 const PLACEHOLDER_PATTERNS = [
-  '/artist/default-', // Deezer default artist image
-  '/artist/000000', // Deezer placeholder
-  'artworkUrl100', // iTunes default (if it matches exactly with no variation)
+  /artist\/default-/i,     // Deezer default artist image
+  /artist\/000000/i,       // Deezer placeholder
+  /artwork\/default/i,     // Generic artwork placeholder
+  /no-artwork/i,           // No artwork available
+  /placeholder/i,          // Generic placeholder
+  /avatar-default/i,       // Default avatar
+  /user-default/i,         // Default user image
+  /audiodefault\.png/i,    // iTunes audio default
+  /MusicDefault\.png/i,    // iTunes music default
+];
+
+// Common iTunes placeholder image hashes (these appear in URLs)
+const ITUNES_PLACEHOLDER_HASHES = [
+  'bb7f14996b4e42ffbb76ea0e97c971de', // Known iTunes placeholder hash
+  '0/0/0/0/', // Empty artwork path pattern
 ];
 
 function isPlaceholderImage(url) {
@@ -30,9 +42,24 @@ function isPlaceholderImage(url) {
   
   // Check for known placeholder patterns
   for (const pattern of PLACEHOLDER_PATTERNS) {
-    if (url.includes(pattern)) {
+    if (pattern.test(url)) {
+      console.log('[ExternalArt] Filtered placeholder pattern:', url.substring(0, 80));
       return true;
     }
+  }
+  
+  // Check for iTunes placeholder hashes
+  for (const hash of ITUNES_PLACEHOLDER_HASHES) {
+    if (url.includes(hash)) {
+      console.log('[ExternalArt] Filtered iTunes placeholder hash:', url.substring(0, 80));
+      return true;
+    }
+  }
+  
+  // Check if URL is too generic/short (likely a placeholder)
+  if (url.length < 50) {
+    console.log('[ExternalArt] Filtered short URL (likely placeholder):', url);
+    return true;
   }
   
   return false;
@@ -67,8 +94,9 @@ async function fetchItunesImages(artistName, limit = 6) {
     const images = entries
       .map((entry) => entry.artworkUrl100 || entry.artworkUrl60)
       .filter(Boolean)
-      .map((urlStr) => urlStr.replace(/100x100|60x60/gi, '1000x1000'));
-    console.log('[ExternalArt] iTunes returned', images.length, 'images');
+      .map((urlStr) => urlStr.replace(/100x100|60x60/gi, '1000x1000'))
+      .filter(url => !isPlaceholderImage(url)); // Filter out placeholders
+    console.log('[ExternalArt] iTunes returned', images.length, 'images (after filtering placeholders)');
     return images;
   } catch (error) {
     console.warn('[ExternalArt] iTunes lookup failed', error.message);

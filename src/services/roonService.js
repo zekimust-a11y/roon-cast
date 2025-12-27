@@ -284,13 +284,17 @@ class RoonService extends EventEmitter {
             this.enrichArtistImages(nowPlaying, artistImages)
               .then((finalArtistImages) => {
                 if (finalArtistImages.length > artistImages.length) {
-                  console.log('[RoonService] Sending enriched artist images update');
-                  finalizePayload({
+                  console.log('[RoonService] Updating with enriched artist images');
+                  // Update nowPlaying with enriched images WITHOUT triggering track change
+                  const enrichedPayload = {
                     ...payload,
                     image_data: inlineArt,
                     image_url: hostedAlbumImage,
                     artist_images: finalArtistImages,
-                  });
+                  };
+                  this.nowPlaying = enrichedPayload;
+                  // Emit only the enriched payload without triggering track change detection
+                  this.emit('now-playing', enrichedPayload);
                 }
               })
               .catch((err) => console.warn('[RoonService] background enrichment failed', err.message));

@@ -2,6 +2,24 @@
 
 A complete solution for displaying rich "now playing" information from Roon on a Chromecast device with custom UI. Features automatic casting on playback start, persistent settings, smooth track transitions, and external artist image enrichment.
 
+## Recent Changes (v1.2.0)
+
+### Fixed
+- **Artist Image Cycling** - Fixed payload trimming that was reducing 4 images to 2, ensuring all artist images cycle properly
+- **Placeholder Filtering** - Enhanced detection to filter iTunes and Deezer placeholder images (default artist photos, generic placeholders)
+- **Duplicate Track Changes** - Fixed enriched artist images triggering unnecessary track change events
+- **Casting Stability** - Improved handling of track transitions to prevent "waiting for playback" flashes
+
+### Added
+- **Browser Test Receiver** (`/test-receiver.html`) - Full receiver emulation in browser for easier testing and debugging
+- **Enhanced Placeholder Detection** - Regex-based filtering for multiple placeholder patterns
+- **Debug Logging** - Comprehensive logging for artist image fetching and filtering
+
+### Improved
+- **Payload Sanitization** - Reordered trimming steps to prioritize keeping artist images
+- **External Image Fetching** - Split multi-artist names for better external API results
+- **Track Transition Speed** - Send Roon images immediately, enrich with external images in background
+
 ## Features
 
 - ✅ **Automatic Casting** - Starts casting automatically when Roon playback begins
@@ -62,6 +80,36 @@ Your selections are automatically saved to `config.json` and will persist across
 ### 3. Start Playback
 
 Simply press play in Roon—casting will start automatically within 1-2 seconds!
+
+## Testing & Debugging
+
+### Browser Test Receiver
+
+For development and debugging without constantly rebooting the Chromecast:
+
+1. Open `http://localhost:8080/test-receiver.html` in Chrome
+2. Play music in Roon - it will display in the browser exactly like on the Chromecast
+3. Real-time debug panel shows all events (artist images, track changes, updates)
+4. Test track changes, pauses, artist image cycling, and more
+
+**Benefits:**
+- No Chromecast reboot needed
+- See all logs in browser console
+- Debug panel shows real-time events
+- Faster iteration and testing
+
+### Console Logging
+
+The bridge logs all activity to the console. Key log patterns:
+
+```
+[RoonService] Track changed. now_playing fields: {...}
+[RoonService] enrichArtistImages: Final count: 4 images
+[Chromecast] TCP connected
+[Chromecast] reuse existing client connection
+[ExternalArt] Deezer returned 9 images (after filtering placeholders)
+[ExternalArt] iTunes returned 12 images (after filtering placeholders)
+```
 
 ## Configuration
 
