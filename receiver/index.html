@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Roon Cast Receiver</title>
+    <!-- v1.2.1 -->
     <style>
       * {
         margin: 0;
@@ -23,7 +24,7 @@
         position: fixed;
         inset: 0;
         background-size: cover;
-        background-position: center;
+        background-position: center bottom;
         opacity: 0;
         transition: opacity 1.5s ease-in-out;
         will-change: opacity;
@@ -60,12 +61,19 @@
         gap: 48px;
         align-items: flex-end;
         z-index: 10;
+        opacity: 1;
+        transition: opacity 0.3s ease;
+      }
+
+      .bottom-bar.hidden {
+        opacity: 0;
+        pointer-events: none;
       }
 
       .artwork-container {
-        width: 29vh;
-        height: 29vh;
-        max-width: 384px;
+        width: 33vh;
+        height: 33vh;
+        max-width: 442px;
         flex-shrink: 0;
         border-radius: 10px;
         overflow: hidden;
@@ -97,7 +105,7 @@
         font-size: 2.6rem;
         font-weight: 700;
         letter-spacing: -0.5px;
-        margin-bottom: 10px;
+        margin-bottom: 6px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -106,7 +114,7 @@
       .artist-text {
         font-size: 1.3rem;
         color: rgba(255, 255, 255, 0.8);
-        margin-bottom: 24px;
+        margin-bottom: 16px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -135,7 +143,7 @@
 
       .progress-container {
         flex: 1;
-        height: 6px;
+        height: 3px;
         display: flex;
         align-items: center;
         position: relative;
@@ -148,7 +156,7 @@
         height: 100%;
         background: linear-gradient(90deg, #ffffff, rgba(255, 255, 255, 0.9));
         border-radius: 3px;
-        transition: width 0.3s ease-out;
+        transition: width 1s linear;
         width: 0%;
       }
 
@@ -196,8 +204,8 @@
         }
 
         .artwork-container {
-          width: 48vw;
-          height: 48vw;
+          width: 55vw;
+          height: 55vw;
         }
 
         .info {
@@ -233,12 +241,12 @@
     <div id="bg-layer-1" class="background-layer"></div>
     <div class="background-overlay"></div>
 
-    <div class="bottom-bar">
+    <div class="bottom-bar hidden">
       <div class="artwork-container">
         <img id="album-art" class="artwork" alt="Album art" />
       </div>
       <div class="info">
-        <h1 class="title">Waiting for playback…</h1>
+        <h1 class="title"></h1>
         <p class="artist-text"></p>
         <div class="progress-row">
           <span class="time current">0:00</span>
@@ -281,6 +289,7 @@
       const durationEl = document.querySelector('.time.duration');
       const progressBar = document.getElementById('progress-bar');
       const albumArt = document.getElementById('album-art');
+      const bottomBar = document.querySelector('.bottom-bar');
       const volumeOverlay = document.getElementById('volume-overlay');
       const volumeIcon = document.getElementById('volume-icon');
       const volumeValue = document.getElementById('volume-value');
@@ -327,12 +336,12 @@
         if (tickTimer) clearInterval(tickTimer);
 
         if (nowPlaying) {
+          // Show the bottom bar when we have content
+          bottomBar.classList.remove('hidden');
+          
           const trackId = `${nowPlaying.one_line?.line1 || ''}-${nowPlaying.two_line?.line1 || ''}`;
-          let artistName = nowPlaying.two_line?.line2 || '';
-          // If multiple artists separated by slashes, show only the primary artist
-          if (artistName.includes(' / ')) {
-            artistName = artistName.split(' / ')[0].trim();
-          }
+          // Use the 'artist' field which contains only artists, not composers
+          const artistName = nowPlaying.artist || nowPlaying.two_line?.line2 || '';
           const trackTitle = nowPlaying.two_line?.line1 || nowPlaying.one_line?.line1 || 'Unknown track';
           const duration = nowPlaying.length || 0;
           const seek = payload.seek_position || 0;
@@ -378,7 +387,9 @@
         const total = lastPayload.now_playing.length || 0;
         const seek = lastPayload.seek_position;
         currentTimeEl.textContent = formatTime(seek);
-        updateProgress(total > 0 ? (seek / total) * 100 : 0);
+        // Update progress to the NEXT second's position for smooth animation
+        const nextProgress = total > 0 ? ((seek + 1) / total) * 100 : 0;
+        updateProgress(nextProgress);
       }
 
       function handleVolumeOverlay(volumeObj) {
@@ -503,7 +514,10 @@
       }
 
       function resetDisplay() {
-        titleEl.textContent = 'Waiting for playback…';
+        // Hide the entire bottom bar for blank screen
+        bottomBar.classList.add('hidden');
+        
+        titleEl.textContent = '';
         artistEl.textContent = '';
         currentTimeEl.textContent = '0:00';
         durationEl.textContent = '0:00';

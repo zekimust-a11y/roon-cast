@@ -18,6 +18,26 @@ async function fetchJSON(url) {
   }
 }
 
+// Known placeholder image patterns to filter out
+const PLACEHOLDER_PATTERNS = [
+  '/artist/default-', // Deezer default artist image
+  '/artist/000000', // Deezer placeholder
+  'artworkUrl100', // iTunes default (if it matches exactly with no variation)
+];
+
+function isPlaceholderImage(url) {
+  if (!url) return true;
+  
+  // Check for known placeholder patterns
+  for (const pattern of PLACEHOLDER_PATTERNS) {
+    if (url.includes(pattern)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 async function fetchDeezerImages(artistName, limit = 4) {
   if (!artistName) return [];
   const url = `${DEEZER_ENDPOINT}?q=${encodeURIComponent(artistName)}&limit=${limit}`;
@@ -27,8 +47,9 @@ async function fetchDeezerImages(artistName, limit = 4) {
     const entries = Array.isArray(payload?.data) ? payload.data : [];
     const images = entries
       .map((entry) => entry.picture_xl || entry.picture_big || entry.picture_medium || entry.picture)
-      .filter(Boolean);
-    console.log('[ExternalArt] Deezer returned', images.length, 'images');
+      .filter(Boolean)
+      .filter(url => !isPlaceholderImage(url)); // Filter out placeholders
+    console.log('[ExternalArt] Deezer returned', images.length, 'images (after filtering placeholders)');
     return images;
   } catch (error) {
     console.warn('[ExternalArt] Deezer lookup failed', error.message);

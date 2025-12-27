@@ -269,18 +269,31 @@ class RoonService extends EventEmitter {
       const artistPromise = this.getArtistImages(nowPlaying.artist_image_keys || []).catch(() => []);
 
       Promise.all([inlinePromise, hostedAlbumPromise, artistPromise])
-        .then(async ([inlineArt, hostedAlbumImage, artistImages]) => {
-          try {
-            const finalArtistImages = await this.enrichArtistImages(nowPlaying, artistImages);
-            finalizePayload({
-              ...payload,
-              image_data: inlineArt,
-              image_url: hostedAlbumImage,
-              artist_images: finalArtistImages,
-            });
-          } catch (err) {
-            console.warn('[RoonService] artist enrichment failed', err.message);
-            finalizePayload(payload);
+        .then(([inlineArt, hostedAlbumImage, artistImages]) => {
+          // Send immediately with Roon images for fast display
+          const quickPayload = {
+            ...payload,
+            image_data: inlineArt,
+            image_url: hostedAlbumImage,
+            artist_images: artistImages,
+          };
+          finalizePayload(quickPayload);
+          
+          // Then enrich with external images in background (non-blocking)
+          if (artistImages && artistImages.length < 4) {
+            this.enrichArtistImages(nowPlaying, artistImages)
+              .then((finalArtistImages) => {
+                if (finalArtistImages.length > artistImages.length) {
+                  console.log('[RoonService] Sending enriched artist images update');
+                  finalizePayload({
+                    ...payload,
+                    image_data: inlineArt,
+                    image_url: hostedAlbumImage,
+                    artist_images: finalArtistImages,
+                  });
+                }
+              })
+              .catch((err) => console.warn('[RoonService] background enrichment failed', err.message));
           }
         })
         .catch(() => finalizePayload(payload));
