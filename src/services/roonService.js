@@ -257,6 +257,13 @@ class RoonService extends EventEmitter {
     };
 
     if (trackChanged && nowPlaying) {
+      console.log('[RoonService] Track changed. now_playing fields:', {
+        artist: nowPlaying.artist || 'N/A',
+        composer: nowPlaying.composer || 'N/A',
+        artist_image_keys: (nowPlaying.artist_image_keys || []).length,
+        line2: nowPlaying.two_line?.line2 || nowPlaying.three_line?.line2 || 'N/A'
+      });
+      
       const inlinePromise = this.getInlineImage(nowPlaying.image_key).catch(() => null);
       const hostedAlbumPromise = this.getHostedImage(nowPlaying.image_key).catch(() => null);
       const artistPromise = this.getArtistImages(nowPlaying.artist_image_keys || []).catch(() => []);
@@ -429,14 +436,29 @@ class RoonService extends EventEmitter {
 
   extractArtistName(nowPlaying) {
     if (!nowPlaying) return null;
-    return (
+    
+    // Priority: prefer explicit artist field over line2 (which might include composer)
+    let artistName = 
+      nowPlaying.artist ||
       nowPlaying.three_line?.line2 ||
       nowPlaying.two_line?.line2 ||
       nowPlaying.one_line?.line2 ||
-      nowPlaying.artist ||
-      nowPlaying.composer ||
-      null
-    );
+      null;
+    
+    if (!artistName) {
+      console.log('[RoonService] extractArtistName: No artist found');
+      return null;
+    }
+    
+    // If multiple artists are separated by slashes, take only the first one (primary artist)
+    if (artistName.includes(' / ')) {
+      const primaryArtist = artistName.split(' / ')[0].trim();
+      console.log('[RoonService] extractArtistName: Multiple artists found, using primary:', primaryArtist, '(full:', artistName + ')');
+      return primaryArtist;
+    }
+    
+    console.log('[RoonService] extractArtistName:', artistName);
+    return artistName;
   }
 }
 

@@ -310,10 +310,28 @@ class ChromecastService extends EventEmitter {
     const clone = JSON.parse(JSON.stringify(payload));
     let trimmed = false;
 
-    // Step 1: Trim artist images to one
-    if (Array.isArray(clone.artist_images) && clone.artist_images.length > 1) {
-      clone.artist_images = clone.artist_images.slice(0, 1);
+    // Check initial size
+    let sanitized = { type, payload: clone };
+    let size = Buffer.byteLength(JSON.stringify(sanitized));
+    
+    // If under limit, return as-is
+    if (size <= MAX_MESSAGE_BYTES) {
+      return sanitized;
+    }
+    
+    console.log('[Chromecast] Payload too large:', size, 'bytes, trimming...');
+
+    // Step 1: Trim artist images to 2 (keep some for cycling)
+    if (Array.isArray(clone.artist_images) && clone.artist_images.length > 2) {
+      clone.artist_images = clone.artist_images.slice(0, 2);
       trimmed = true;
+    }
+    
+    sanitized = { type, payload: clone };
+    size = Buffer.byteLength(JSON.stringify(sanitized));
+    if (size <= MAX_MESSAGE_BYTES) {
+      console.log('[Chromecast] trimmed artist_images, payload now', size, 'bytes');
+      return sanitized;
     }
     
     // Step 2: Collapse three_line to just line1
@@ -332,24 +350,24 @@ class ChromecastService extends EventEmitter {
       }
     }
 
-    let sanitized = { type, payload: clone };
-    let size = Buffer.byteLength(JSON.stringify(sanitized));
+    sanitized = { type, payload: clone };
+    size = Buffer.byteLength(JSON.stringify(sanitized));
     if (size <= MAX_MESSAGE_BYTES) {
-      if (trimmed) {
-        console.log('[Chromecast] trimmed payload to', size, 'bytes');
-      }
+      console.log('[Chromecast] collapsed metadata, payload now', size, 'bytes');
       return sanitized;
     }
 
     // Step 3: Remove all artist images if still too large
     if (clone.artist_images && clone.artist_images.length) {
       clone.artist_images = [];
-      sanitized = { type, payload: clone };
-      size = Buffer.byteLength(JSON.stringify(sanitized));
-      if (size <= MAX_MESSAGE_BYTES) {
-        console.log('[Chromecast] removed artist images, payload bytes', size);
-        return sanitized;
-      }
+      trimmed = true;
+    }
+
+    sanitized = { type, payload: clone };
+    size = Buffer.byteLength(JSON.stringify(sanitized));
+    if (size <= MAX_MESSAGE_BYTES) {
+      console.log('[Chromecast] removed artist_images, payload now', size, 'bytes');
+      return sanitized;
     }
 
     // Step 4: Remove text metadata

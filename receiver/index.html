@@ -63,9 +63,9 @@
       }
 
       .artwork-container {
-        width: 36vh;
-        height: 36vh;
-        max-width: 480px;
+        width: 29vh;
+        height: 29vh;
+        max-width: 384px;
         flex-shrink: 0;
         border-radius: 10px;
         overflow: hidden;
@@ -196,8 +196,8 @@
         }
 
         .artwork-container {
-          width: 60vw;
-          height: 60vw;
+          width: 48vw;
+          height: 48vw;
         }
 
         .info {
@@ -317,12 +317,22 @@
           return;
         }
 
+        // If no nowPlaying but not explicitly idle/stopped/paused, keep last display (track change transition)
+        if (!nowPlaying && state !== 'idle' && state !== 'stopped' && state !== 'paused' && lastPayload && lastPayload.now_playing) {
+          console.log('[Receiver] Keeping last display during transition, state:', state);
+          return;
+        }
+
         lastPayload = payload;
         if (tickTimer) clearInterval(tickTimer);
 
         if (nowPlaying) {
           const trackId = `${nowPlaying.one_line?.line1 || ''}-${nowPlaying.two_line?.line1 || ''}`;
-          const artistName = nowPlaying.two_line?.line2 || '';
+          let artistName = nowPlaying.two_line?.line2 || '';
+          // If multiple artists separated by slashes, show only the primary artist
+          if (artistName.includes(' / ')) {
+            artistName = artistName.split(' / ')[0].trim();
+          }
           const trackTitle = nowPlaying.two_line?.line1 || nowPlaying.one_line?.line1 || 'Unknown track';
           const duration = nowPlaying.length || 0;
           const seek = payload.seek_position || 0;
@@ -335,6 +345,7 @@
           updateProgress(progress);
 
           if (trackId !== lastTrackId) {
+            console.log('[Receiver] Track changed:', trackTitle);
             lastTrackId = trackId;
             const albumImage = payload.image_data || null;
             const albumBackground = payload.image_url || albumImage;
@@ -351,7 +362,9 @@
             tickTimer = setInterval(() => incrementSeek(), 1000);
           }
           handleVolumeOverlay(payload.output?.volume);
-        } else {
+        } else if (state === 'idle' || state === 'stopped' || state === 'paused') {
+          // Only reset display for explicit idle/stopped/paused states
+          console.log('[Receiver] Resetting display, state:', state);
           resetDisplay();
         }
       }
@@ -423,18 +436,28 @@
           rotationTimer = null;
         }
         artistImages = Array.isArray(artistList) ? artistList.filter(Boolean) : [];
+        console.log('[Receiver] updateBackgroundSources: got', artistImages.length, 'artist images');
 
-        if (artistImages.length) {
+        if (artistImages.length > 0) {
+          console.log('[Receiver] Starting artist image rotation, images:', artistImages.length);
           let index = 0;
           const showNext = () => {
+            console.log('[Receiver] Showing artist image', index + 1, 'of', artistImages.length);
             setBackground(artistImages[index], false);
             index = (index + 1) % artistImages.length;
           };
           showNext();
-          rotationTimer = setInterval(showNext, BACKGROUND_ROTATION_MS);
+          if (artistImages.length > 1) {
+            rotationTimer = setInterval(showNext, BACKGROUND_ROTATION_MS);
+            console.log('[Receiver] Rotation timer set for', BACKGROUND_ROTATION_MS, 'ms');
+          } else {
+            console.log('[Receiver] Only 1 artist image, no rotation needed');
+          }
         } else if (albumImage) {
+          console.log('[Receiver] No artist images, using blurred album art');
           setBackground(albumImage, true);
         } else {
+          console.log('[Receiver] No images available, clearing background');
           clearBackground();
         }
       }
